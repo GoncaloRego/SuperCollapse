@@ -14,9 +14,11 @@ public enum TileType
 public class Tile : MonoBehaviour
 {
     [SerializeField] GameObject colorGameObject;
+    [SerializeField] public TileType tileType;
+    [HideInInspector] public int totalTileTypes = Enum.GetNames(typeof(TileType)).Length;
+    [SerializeField] public bool isInsideGrid = false;
+
     SpriteRenderer colorRenderer;
-    public TileType tileType;
-    public int totalTileTypes = Enum.GetNames(typeof(TileType)).Length;
     GridManager gridManager;
 
     void Start()
@@ -29,6 +31,7 @@ public class Tile : MonoBehaviour
     void Update()
     {
         SetTileColor();
+        SetTileName();
     }
 
     void SetTileColor()
@@ -54,24 +57,26 @@ public class Tile : MonoBehaviour
 
     void SetTileName()
     {
-        //gameObject.name = "(" + transform.position.x + "," + transform.position.y + ")";
+        gameObject.name = "(" + transform.position.x + "," + transform.position.y + ")";
     }
 
-    public void MoveTileUp()
+    public void MoveTileToGrid()
     {
-        Debug.Log(transform.position);
+        transform.position = new Vector3(transform.position.x, 0, 0f);
+        isInsideGrid = true;
+    }
+
+    public void MoveTileOneLineUp()
+    {
+        float newPosition_Y = transform.position.y + 1f;
+        transform.position = new Vector3(transform.position.x, newPosition_Y, 0f);
     }
 
     void OnMouseDown()
     {
-        // if (gridManager.grid.ContainsValue(this))
-        // {
-        Destroy(gameObject);
-        // }
-    }
-
-    public void InstantiateTile(Tile tile, Vector2 position)
-    {
-        Instantiate(tile.gameObject, position, Quaternion.identity);
+        if (isInsideGrid == true)
+        {
+            Destroy(gameObject);
+        }
     }
 }

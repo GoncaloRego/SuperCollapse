@@ -6,24 +6,28 @@ using UnityEngine.UI;
 public class GridManager : MonoBehaviour
 {
     [SerializeField] Tile tile;
-    [SerializeField] List<Tile> tiles;
-    [SerializeField] int numberOfInitialTiles;
-
     [SerializeField] GameObject nextLineTilesBackground;
+    [SerializeField] public Tile[] tiles;
     float nextLineBackground_y;
-    float nextLineTilesTimeDelay = 0.5f;
+    float nextLineTilesTimeDelay = 1f;
+    int nextLineNumberOfTiles = 7;
+    int newLines = 0;
+    bool lineAdded;
 
     [SerializeField] GameObject gridBackground;
-    [SerializeField] public Dictionary<Vector2Int, Tile> grid = new Dictionary<Vector2Int, Tile>();
     [SerializeField] int gridWidth = 7;
     [SerializeField] int gridHeight = 9;
 
+    [SerializeField] [Range(10, 30)] int numberOfInitialTiles = 10;
+
+    GameManager gameManager;
+
     void Start()
     {
-        tiles = new List<Tile>();
-
         nextLineBackground_y = nextLineTilesBackground.transform.position.y;
         gridBackground.transform.localScale = new Vector2(gridWidth, gridHeight);
+
+        gameManager = FindObjectOfType<GameManager>();
 
         InstantiateInitialTiles();
         InstantiateNextLineBlankTiles();
@@ -32,16 +36,26 @@ public class GridManager : MonoBehaviour
 
     void Update()
     {
-
+        if (lineAdded == true)
+        {
+            if (tile == null)
+            {
+                return;
+            }
+            StartCoroutine(nameof(InstantiateNextLineTiles));
+        }
     }
 
     void InstantiateInitialTiles()
     {
-        for (int i = 0; i < numberOfInitialTiles; i++)
+        int currentLinePos_X = 0;
+        int currentLinePos_Y = 0;
+
+        for (int x = 0; x < numberOfInitialTiles; x++)
         {
             float tileColor = Random.Range(0, tile.totalTileTypes - 1);
-
-            Vector2Int tilePosition = new Vector2Int(i, 0);
+            Vector2 tilePosition = new Vector2(currentLinePos_X, currentLinePos_Y);
+            currentLinePos_X++;
 
             if (tileColor == 0) // Blue
             {
@@ -56,32 +70,41 @@ public class GridManager : MonoBehaviour
                 tile.tileType = TileType.Green;
             }
 
-            tiles.Add(tile);
-            grid.Add(tilePosition, tile);
-            tile.InstantiateTile(tile, new Vector2(tilePosition.x, tilePosition.y));
+            tile.isInsideGrid = true;
+            Instantiate(tile.gameObject, tilePosition, Quaternion.identity);
+
+            if (currentLinePos_X >= gridWidth)
+            {
+                currentLinePos_X = 0;
+                currentLinePos_Y++;
+            }
         }
+
+        tiles = FindObjectsOfType<Tile>();
     }
 
     void InstantiateNextLineBlankTiles()
     {
-        for (int i = 0; i < numberOfInitialTiles; i++)
+        for (int i = 0; i < nextLineNumberOfTiles; i++)
         {
             Vector2 tilePosition = new Vector2(i, nextLineBackground_y);
             tile.tileType = TileType.Grey;
 
-            tile.InstantiateTile(tile, new Vector2(tilePosition.x, tilePosition.y));
+            tile.isInsideGrid = false;
+            //Instantiate(tile.gameObject, new Vector2(tilePosition.x, tilePosition.y), Quaternion.identity);
         }
     }
 
     IEnumerator InstantiateNextLineTiles()
     {
+        lineAdded = false;
         yield return new WaitForSeconds(3f);
 
-        for (int i = 0; i < numberOfInitialTiles; i++)
+        for (int x = 0; x < nextLineNumberOfTiles; x++)
         {
             float tileColor = Random.Range(0, tile.totalTileTypes - 1);
 
-            Vector2 tilePosition = new Vector2(i, nextLineBackground_y);
+            Vector2 tilePosition = new Vector2(x, nextLineBackground_y);
 
             if (tileColor == 0) // Blue
             {
@@ -96,30 +119,31 @@ public class GridManager : MonoBehaviour
                 tile.tileType = TileType.Green;
             }
 
-            tiles.Add(tile);
-            tile.InstantiateTile(tile, new Vector2(tilePosition.x, tilePosition.y));
+            tile.isInsideGrid = false;
+            Instantiate(tile.gameObject, new Vector2(tilePosition.x, tilePosition.y), Quaternion.identity);
 
+            tiles = FindObjectsOfType<Tile>();
             yield return new WaitForSeconds(nextLineTilesTimeDelay);
         }
 
-        MoveNextLineTilesToGrid();
+        AddNewPlay();
     }
 
-    void MoveNextLineTilesToGrid()
+    void AddNewPlay()
     {
-        //tiles.Reverse();
-        List<Tile> tempTilesToMove = new List<Tile>();
-
-        for (int x = 0; x < gridWidth; x++)
+        foreach (Tile t in tiles)
         {
-            tempTilesToMove.Add(tiles[x]);
+            if (t.tileType != TileType.Grey && t.isInsideGrid == true)
+            {
+                t.MoveTileOneLineUp();
+            }
+            else if (t.tileType != TileType.Grey && t.isInsideGrid == false)
+            {
+                t.MoveTileToGrid();
+            }
         }
 
-        foreach (Tile tile in tiles)
-        {
-            tile.MoveTileUp();
-        }
-
-        //tiles.Reverse();
+        newLines++;
+        lineAdded = true;
     }
 }
