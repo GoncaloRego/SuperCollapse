@@ -8,7 +8,6 @@ public enum TileType
     Blue,
     Red,
     Green,
-    Grey
 }
 
 public class Tile : MonoBehaviour
@@ -17,24 +16,31 @@ public class Tile : MonoBehaviour
     [SerializeField] public TileType tileType;
     [HideInInspector] public int totalTileTypes = Enum.GetNames(typeof(TileType)).Length;
     [SerializeField] public bool isInsideGrid = false;
+    Rigidbody2D tileRigidbody;
 
     SpriteRenderer colorRenderer;
     GridManager gridManager;
+    GameManager gameManager;
+    UIController uIController;
+
+    float gravityScale = 2f;
+
+    bool collided = false;
 
     void Start()
     {
-        SetTileName();
-        SetTileColor();
+        tileRigidbody = GetComponent<Rigidbody2D>();
         gridManager = FindObjectOfType<GridManager>();
+        gameManager = FindObjectOfType<GameManager>();
+        uIController = FindObjectOfType<UIController>();
+
+        if (TileIsInsideGrid() == true)
+        {
+            EnableGravity();
+        }
     }
 
-    void Update()
-    {
-        SetTileColor();
-        SetTileName();
-    }
-
-    void SetTileColor()
+    public void SetTileColor()
     {
         colorRenderer = colorGameObject.GetComponent<SpriteRenderer>();
         if (tileType == TileType.Blue)
@@ -49,34 +55,38 @@ public class Tile : MonoBehaviour
         {
             colorRenderer.color = Color.green;
         }
-        else if (tileType == TileType.Grey)
-        {
-            colorRenderer.color = Color.gray;
-        }
-    }
-
-    void SetTileName()
-    {
-        gameObject.name = "(" + transform.position.x + "," + transform.position.y + ")";
     }
 
     public void MoveTileToGrid()
     {
-        transform.position = new Vector3(transform.position.x, 0, 0f);
+        transform.position = new Vector2(transform.position.x, 0f);
         isInsideGrid = true;
+        EnableGravity();
     }
 
     public void MoveTileOneLineUp()
     {
-        float newPosition_Y = transform.position.y + 1f;
-        transform.position = new Vector3(transform.position.x, newPosition_Y, 0f);
+        int newPosition_Y = Mathf.RoundToInt(transform.position.y) + 1;
+        transform.position = new Vector2(transform.position.x, newPosition_Y);
+    }
+
+    public void EnableGravity()
+    {
+        tileRigidbody.gravityScale = gravityScale;
+    }
+
+    bool TileIsInsideGrid()
+    {
+        if (Mathf.RoundToInt(transform.position.y) >= 0f && Mathf.RoundToInt(transform.position.y) < gridManager.gridHeight)
+        {
+            return true;
+        }
+        return false;
     }
 
     void OnMouseDown()
     {
-        if (isInsideGrid == true)
-        {
-            Destroy(gameObject);
-        }
+        gridManager.UpdateTilesArray();
+        gridManager.RemoveTiles(this);
     }
 }

@@ -8,29 +8,43 @@ public class GridManager : MonoBehaviour
     [SerializeField] Tile tile;
     [SerializeField] GameObject nextLineTilesBackground;
     [SerializeField] public Tile[] tiles;
+    [SerializeField] public List<Tile> tilesToRemove;
     float nextLineBackground_y;
     float nextLineTilesTimeDelay = 1f;
     int nextLineNumberOfTiles = 7;
     int newLines = 0;
     bool lineAdded;
+    bool tilesWereRemoved = false;
+    int minAdjacentTiles = 3;
+    int totalNumberOfTilesActive;
 
     [SerializeField] GameObject gridBackground;
-    [SerializeField] int gridWidth = 7;
-    [SerializeField] int gridHeight = 9;
+    public int gridWidth = 7;
+    public int gridHeight = 9;
+    int emptyColumn;
 
     [SerializeField] [Range(10, 30)] int numberOfInitialTiles = 10;
 
     GameManager gameManager;
+    UIController uiController;
+
+    Dictionary<Vector2, Tile> grid;
+
+    AudioSource audioSource;
 
     void Start()
     {
+        tilesToRemove = new List<Tile>();
         nextLineBackground_y = nextLineTilesBackground.transform.position.y;
         gridBackground.transform.localScale = new Vector2(gridWidth, gridHeight);
-
+        grid = new Dictionary<Vector2, Tile>();
         gameManager = FindObjectOfType<GameManager>();
+        uiController = FindObjectOfType<UIController>();
+
+        audioSource = GetComponent<AudioSource>();
+        totalNumberOfTilesActive = numberOfInitialTiles;
 
         InstantiateInitialTiles();
-        InstantiateNextLineBlankTiles();
         StartCoroutine(nameof(InstantiateNextLineTiles));
     }
 
@@ -38,11 +52,26 @@ public class GridManager : MonoBehaviour
     {
         if (lineAdded == true)
         {
-            if (tile == null)
+            if (gameManager.PlayerLost() || gameManager.PlayerWon())
             {
-                return;
+                if (gameManager.PlayerLost())
+                {
+                    uiController.ShowPlayerLoseMessage();
+                }
+                else if (gameManager.PlayerWon())
+                {
+                    uiController.ShowPlayerWinMessage();
+                }
             }
-            StartCoroutine(nameof(InstantiateNextLineTiles));
+            else
+            {
+                StartCoroutine(nameof(InstantiateNextLineTiles));
+            }
+        }
+
+        if (tilesWereRemoved == true)
+        {
+            UpdateTilesArray();
         }
     }
 
@@ -53,7 +82,7 @@ public class GridManager : MonoBehaviour
 
         for (int x = 0; x < numberOfInitialTiles; x++)
         {
-            float tileColor = Random.Range(0, tile.totalTileTypes - 1);
+            float tileColor = Random.Range(0, tile.totalTileTypes);
             Vector2 tilePosition = new Vector2(currentLinePos_X, currentLinePos_Y);
             currentLinePos_X++;
 
@@ -71,6 +100,8 @@ public class GridManager : MonoBehaviour
             }
 
             tile.isInsideGrid = true;
+            tile.SetTileColor();
+            grid.Add(tilePosition, tile);
             Instantiate(tile.gameObject, tilePosition, Quaternion.identity);
 
             if (currentLinePos_X >= gridWidth)
@@ -80,29 +111,17 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        tiles = FindObjectsOfType<Tile>();
-    }
-
-    void InstantiateNextLineBlankTiles()
-    {
-        for (int i = 0; i < nextLineNumberOfTiles; i++)
-        {
-            Vector2 tilePosition = new Vector2(i, nextLineBackground_y);
-            tile.tileType = TileType.Grey;
-
-            tile.isInsideGrid = false;
-            //Instantiate(tile.gameObject, new Vector2(tilePosition.x, tilePosition.y), Quaternion.identity);
-        }
+        UpdateTilesArray();
     }
 
     IEnumerator InstantiateNextLineTiles()
     {
         lineAdded = false;
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(2f);
 
         for (int x = 0; x < nextLineNumberOfTiles; x++)
         {
-            float tileColor = Random.Range(0, tile.totalTileTypes - 1);
+            float tileColor = Random.Range(0, tile.totalTileTypes);
 
             Vector2 tilePosition = new Vector2(x, nextLineBackground_y);
 
@@ -120,24 +139,28 @@ public class GridManager : MonoBehaviour
             }
 
             tile.isInsideGrid = false;
+            tile.SetTileColor();
+
             Instantiate(tile.gameObject, new Vector2(tilePosition.x, tilePosition.y), Quaternion.identity);
 
-            tiles = FindObjectsOfType<Tile>();
             yield return new WaitForSeconds(nextLineTilesTimeDelay);
         }
 
+        UpdateTilesArray();
+
         AddNewPlay();
+        yield return new WaitForSeconds(nextLineTilesTimeDelay);
     }
 
     void AddNewPlay()
     {
         foreach (Tile t in tiles)
         {
-            if (t.tileType != TileType.Grey && t.isInsideGrid == true)
+            if (t.isInsideGrid == true)
             {
                 t.MoveTileOneLineUp();
             }
-            else if (t.tileType != TileType.Grey && t.isInsideGrid == false)
+            else if (t.isInsideGrid == false)
             {
                 t.MoveTileToGrid();
             }
@@ -145,5 +168,138 @@ public class GridManager : MonoBehaviour
 
         newLines++;
         lineAdded = true;
+        totalNumberOfTilesActive += gridWidth;
+        gameManager.DecrementOnePlay();
+        uiController.UpdateTexts();
+
+        if (gameManager.PlayerLost() || gameManager.PlayerWon())
+        {
+            if (gameManager.PlayerLost())
+            {
+                uiController.ShowPlayerLoseMessage();
+            }
+            else if (gameManager.PlayerWon())
+            {
+                uiController.ShowPlayerWinMessage();
+            }
+        }
+    }
+
+    public void RemoveTiles(Tile tileClicked)
+    {
+        AddAdjacentTiles(tileClicked);
+
+        if (tileClicked.isInsideGrid == true && TileHasEnoughAdjacentTiles(tileClicked) == true)
+        {
+            gameManager.IncrementScore();
+            uiController.UpdateTexts();
+
+            PlayGridSound();
+
+            if (gameManager.PlayerLost() || gameManager.PlayerWon())
+            {
+                if (gameManager.PlayerLost())
+                {
+                    uiController.ShowPlayerLoseMessage();
+                }
+                else if (gameManager.PlayerWon())
+                {
+                    uiController.ShowPlayerWinMessage();
+                }
+            }
+
+            foreach (Tile t in tilesToRemove)
+            {
+                if (t != null)
+                {
+                    Destroy(t.gameObject);
+                }
+            }
+        }
+    }
+
+    public bool TileHasEnoughAdjacentTiles(Tile tileClicked)
+    {
+        if (tilesToRemove.Count > minAdjacentTiles)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    void AddAdjacentTiles(Tile tileClicked)
+    {
+        Tile nextTile = tileClicked;
+        tilesToRemove.Clear();
+
+        foreach (Tile t in tiles)
+        {
+            if (TileIsAdjacent(tileClicked, t) == true || TileIsAdjacent(nextTile, t) == true)
+            {
+                if (tilesToRemove.Contains(tileClicked) == false)
+                {
+                    tilesToRemove.Add(tileClicked);
+                }
+                tilesToRemove.Add(t);
+                nextTile = t;
+            }
+        }
+    }
+
+    bool TileIsFromSameLine(Tile tileClicked, Tile tileAdjacent)
+    {
+        if (tileAdjacent.transform.position.x == tileClicked.transform.position.x - 1 && Mathf.RoundToInt(tileAdjacent.transform.position.y) == Mathf.RoundToInt(tileClicked.transform.position.y)) // Adjacent is on the right
+        {
+            return true;
+        }
+        else if (tileAdjacent.transform.position.x == tileClicked.transform.position.x + 1 && Mathf.RoundToInt(tileAdjacent.transform.position.y) == Mathf.RoundToInt(tileClicked.transform.position.y)) // Adjacent is on the left
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool TileIsFromSameColumn(Tile tileClicked, Tile tileAdjacent)
+    {
+        if (tileAdjacent.transform.position.x == tileClicked.transform.position.x && Mathf.RoundToInt(tileAdjacent.transform.position.y) == Mathf.RoundToInt(tileClicked.transform.position.y + 1)) // Adjacent is on top
+        {
+            return true;
+        }
+        else if (tileAdjacent.transform.position.x == tileClicked.transform.position.x && Mathf.RoundToInt(tileAdjacent.transform.position.y) == Mathf.RoundToInt(tileClicked.transform.position.y - 1)) // Adjacent is on the bottom
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool TileIsAdjacent(Tile tileClicked, Tile tileAdjacent)
+    {
+        if ((TileIsFromSameLine(tileClicked, tileAdjacent) || TileIsFromSameColumn(tileClicked, tileAdjacent)) && tileAdjacent.isInsideGrid == true && tileAdjacent.tileType == tileClicked.tileType)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    public void UpdateTilesArray()
+    {
+        tiles = FindObjectsOfType<Tile>();
+    }
+
+    void PlayGridSound()
+    {
+        audioSource.Play();
     }
 }

@@ -1,18 +1,34 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 public class UIController : MonoBehaviour
 {
-    // Start is called before the first frame update
+    [SerializeField] TextMeshProUGUI playsRemainingText;
+    [SerializeField] TextMeshProUGUI scoreText;
+    [SerializeField] GameManager gameManager;
+    [SerializeField] GameObject playerWon;
+    [SerializeField] GameObject playerLost;
+
     void Start()
     {
-        
+        UpdateTexts();
     }
 
-    // Update is called once per frame
-    void Update()
+    public void UpdateTexts()
     {
-        
+        scoreText.text = gameManager.playerScore.ToString();
+        playsRemainingText.text = gameManager.playsRemaining.ToString();
+    }
+
+    public void ShowPlayerWinMessage()
+    {
+        playerWon.SetActive(true);
+    }
+
+    public void ShowPlayerLoseMessage()
+    {
+        playerLost.SetActive(true);
     }
 }
